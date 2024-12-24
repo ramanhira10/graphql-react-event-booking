@@ -2,6 +2,9 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const { graphqlHTTP } = require("express-graphql");
 const { buildSchema } = require("graphql");
+const mongoose = require("mongoose");
+
+const Event = require("./models/event");
 
 const app = express();
 const PORT = 3000;
@@ -42,23 +45,50 @@ app.use("/graphql", graphqlHTTP({
   `),
   rootValue: {
     events: () => {
-      return events;
+
+      return Event.find({}).then(events => {
+        return events.map(event => {
+          return {
+            ...event._doc
+          }
+        });
+      }).catch(err => {
+        throw err
+      });
+
     },
     createEvent: args => {
-      const event = {
-        _id: Math.random().toString(),
+
+      const event = new Event({
         title: args.eventInput.title,
         description: args.eventInput.description,
         price: +args.eventInput.price,
-        date: args.eventInput.date
-      };
+        date: new Date(args.eventInput.date)
+      });
 
-      events.push(event);
-
-      return event;
+      return event
+        .save()
+        .then(result => {
+          return {
+            ...result._doc
+          };
+        })
+        .catch(err => {
+          console.log(err);
+          throw err;
+        });
     }
   },
   graphiql: true
 }));
 
-app.listen(PORT, () => console.log(`Server started at http://localhost:${PORT}`));
+
+mongoose.connect(
+  `mongodb+srv://${process.env.MONGO_USER}:${process.env.MONGO_PASSWORD}@cluster0.a4pwb.mongodb.net/${process.env.MONGO_DB}`
+).then(
+  () => {
+    app.listen(PORT, () => console.log(`Server started at http://localhost:${PORT}`));
+  }
+).catch(
+  err => () => console.log(err)
+);
